@@ -8,6 +8,7 @@ import os
 import io
 import base64
 import json
+import uuid
 from werkzeug.utils import secure_filename
 import numpy as np
 import pandas as pd
@@ -25,6 +26,7 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['ALLOWED_EXTENSIONS'] = {'xlsx', 'xls', 'csv'}
+app.config['SECRET_KEY'] = 'your-secret-key-here'
 
 # アップロードフォルダの作成
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -97,6 +99,22 @@ def analyze():
             Ea = float(data.get('Ea', 80000))
             fit = data.get('fit_Ea', False)
             tts.shift_Arrhenius(Ea=Ea, fit_Ea=fit)
+
+        session['tts_data'] = {
+            'reference_temperature': ref_temp,
+            'method': method,
+            'original_data': {str(T): {
+                'omega': tts.data[T]['omega'].tolist(),
+                'modulus': tts.data[T]['modulus'].tolist()
+            } for T in tts.data},
+            'shift_factors': {str(T): {
+                'aT': tts.shift_factors[T],
+                'log_aT': np.log10(tts.shift_factors[T])
+            } for T in tts.shift_factors}
+        }
+
+        # 最後の解析結果も保存
+        session['last_analysis'] = session['tts_data']
         
         # プロット生成
         plot_data = generate_plots(tts)
@@ -150,6 +168,109 @@ def generate_plots(tts):
     ax.set_title('Original Data')
     ax.grid(True, which="both", alpha=0.3)
     ax.legend()
+
+    @app.route('/manual_adjustment')
+def manual_adjustment_page():
+    """手動調整専用ページ"""
+    return render_template('manual_adjustment.html')
+
+@app.route('/get_current_data', methods=['GET'])
+def get_current_data():
+    """現在のデータを取得"""
+    if 'last_analysis' in session:
+        return jsonify(session['last_analysis'])
+    return jsonify({'error': 'No data available'}), 404
+
+@app.route('/update_shift_factor', methods=['POST'])
+def update_shift_factor():
+    """シフトファクターをリアルタイム更新"""
+    data = request.json
+    temperature = float(data['temperature'])
+    log_aT = float(data['log_aT'])
+    
+    if 'tts_data' in session:
+        tts_data = session['tts_data']
+        tts_data['shift_factors'][str(temperature)] = {
+            'aT': 10**log_aT,
+            'log_aT': log_aT
+        }
+        session['tts_data'] = tts_data
+        session.modified = True  # セッションの変更を確実に保存
+        
+        # 新しいマスターカーブデータを計算
+        shifted_data = calculate_shifted_data(tts_data)
+        
+        return jsonify({
+            'status': 'success',
+            'shifted_data': shifted_data
+        })
+    
+    return jsonify({'error': 'No TTS data in session'}), 400
+
+def calculate_shifted_data(tts_data):
+    """シフトされたデータを計算（ヘルパー関数）"""
+    shifted = {}
+    for temp, data in tts_data['original_data'].items():
+        aT = tts_data['shift_factors'][temp]['aT']
+        shifted[temp] = {
+            'omega': [w * aT for w in data['omega']],
+            'modulus': data['modulus']
+        }
+    return shifted
+
+@app.route('/save_manual_adjustment', methods=['POST'])
+def save_manual_adjustment():
+    """手動調整結果を保存"""
+    data = request.json
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f'manual_adjustment_{timestamp}.xlsx'
+    filepath = os.path.join('static/results', filename)
+    
+    # Excelファイルを生成
+    export_manual_results(data, filepath)
+    
+    return jsonify({
+        'status': 'success',
+        'filename': filename,
+        'download_url': f'/download/{filename}'
+    })
+
+def export_manual_results(data, filepath):
+    """手動調整結果をExcelにエクスポート（ヘルパー関数）"""
+    with pd.ExcelWriter(filepath) as writer:
+        # マスターカーブデータ
+        all_data = []
+        for temp_str, temp_data in data['original_data'].items():
+            temp = float(temp_str)
+            aT = data['shift_factors'][temp_str]['aT']
+            
+            for i in range(len(temp_data['omega'])):
+                all_data.append({
+                    'Temperature [°C]': temp,
+                    'ω [rad/s]': temp_data['omega'][i],
+                    "G' [Pa]": temp_data['modulus'][i],
+                    'aT': aT,
+                    'log(aT)': np.log10(aT),
+                    'ω·aT [rad/s]': temp_data['omega'][i] * aT
+                })
+        
+        df = pd.DataFrame(all_data)
+        df.to_excel(writer, sheet_name='Master Curve Data', index=False)
+        
+        # シフトファクター
+        shift_data = []
+        for temp_str, sf in data['shift_factors'].items():
+            shift_data.append({
+                'Temperature [°C]': float(temp_str),
+                'aT': sf['aT'],
+                'log(aT)': sf['log_aT']
+            })
+        
+        df_shift = pd.DataFrame(shift_data)
+        df_shift.to_excel(writer, sheet_name='Shift Factors', index=False)
+
+# ==================== 新しい関数の追加ここまで ====================
     
     # マスターカーブ
     ax = axes[0, 1]
