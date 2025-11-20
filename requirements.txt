@@ -1,0 +1,21 @@
+# Core dependencies
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Scientific computing
+numpy==1.24.3
+pandas==2.0.3
+scipy==1.11.4
+openpyxl==3.1.2
+
+# Plotting
+matplotlib==3.7.2
+
+# File handling
+python-dotenv==1.0.0
+
+# Production server (optional)
+gunicorn==21.2.0
+
+# Additional utilities
+flask-cors==4.0.0
