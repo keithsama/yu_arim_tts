@@ -5,129 +5,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manual Adjustment - TTS Analysis</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        .slider-container {
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        }
-        .slider-label {
-            font-weight: bold;
-            display: inline-block;
-            width: 80px;
-        }
-        .slider-value {
-            display: inline-block;
-            width: 80px;
-            text-align: right;
-            font-family: monospace;
-        }
-        .temperature-slider {
-            width: 100%;
-            margin: 10px 0;
-        }
-        #masterCurvePlot, #shiftFactorPlot {
-            height: 400px;
-            margin: 20px 0;
-        }
-        .control-buttons {
-            margin: 20px 0;
-            text-align: center;
-        }
-        .status-message {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-    </style>
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Plotly最新版を明示的に指定 -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 </head>
 <body>
     <div class="container-fluid mt-3">
         <h1 class="text-center mb-4">Manual Shift Factor Adjustment</h1>
         
-        <div class="row">
-            <!-- 左側: コントロールパネル -->
-            <div class="col-md-3">
-                <div class="card">
-                    <div class="card-header">
-                        <h4>Shift Factor Controls</h4>
-                    </div>
-                    <div class="card-body">
-                        <div id="sliderContainer">
-                            <!-- スライダーが動的に追加される -->
-                        </div>
-                        
-                        <div class="control-buttons mt-4">
-                            <button id="resetBtn" class="btn btn-warning btn-sm">Reset to Auto</button>
-                            <button id="saveBtn" class="btn btn-success btn-sm">Save Results</button>
-                            <button id="exportBtn" class="btn btn-info btn-sm">Export Excel</button>
-                        </div>
-                        
-                        <div class="mt-4">
-                            <h5>Reference Temperature</h5>
-                            <p id="refTempDisplay" class="text-center fs-4">-</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- シフトファクターテーブル -->
-                <div class="card mt-3">
-                    <div class="card-header">
-                        <h5>Current Values</h5>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>T (°C)</th>
-                                    <th>aT</th>
-                                    <th>log(aT)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="shiftFactorTable">
-                                <!-- 動的に更新 -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <!-- Loading indicator -->
+        <div id="loadingDiv" class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
             </div>
-            
-            <!-- 右側: プロット -->
-            <div class="col-md-9">
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header">
-                                <h4>Master Curve</h4>
+            <p class="mt-3">Loading data...</p>
+        </div>
+        
+        <!-- Main content (hidden initially) -->
+        <div id="mainContent" style="display: none;">
+            <div class="row">
+                <!-- Left panel: Controls -->
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0">Shift Factor Controls</h4>
+                        </div>
+                        <div class="card-body">
+                            <div id="sliderContainer">
+                                <!-- Sliders will be added dynamically -->
                             </div>
-                            <div class="card-body">
-                                <div id="masterCurvePlot"></div>
+                            
+                            <div class="control-buttons mt-4">
+                                <button id="resetBtn" class="btn btn-warning btn-sm w-100 mb-2">
+                                    🔄 Reset to Auto
+                                </button>
+                                <button id="saveBtn" class="btn btn-success btn-sm w-100 mb-2">
+                                    💾 Save Settings
+                                </button>
+                                <button id="exportBtn" class="btn btn-info btn-sm w-100">
+                                    📥 Export Excel
+                                </button>
+                            </div>
+                            
+                            <div class="mt-4 p-3 bg-light rounded">
+                                <h5 class="text-center">Reference Temperature</h5>
+                                <p id="refTempDisplay" class="text-center fs-3 mb-0 text-primary">-</p>
                             </div>
                         </div>
+                    </div>
+                    
+                    <!-- Shift factor table -->
+                    <div class="card mt-3">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">Current Values</h5>
+                        </div>
+                        <div class="card-body p-2">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>T (°C)</th>
+                                        <th>aT</th>
+                                        <th>log(aT)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shiftFactorTable">
+                                    <!-- Data will be added dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Back button -->
+                    <div class="mt-3">
+                        <a href="/" class="btn btn-secondary w-100">← Back to Analysis</a>
                     </div>
                 </div>
                 
-                <div class="row mt-3">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5>Original Data</h5>
-                            </div>
-                            <div class="card-body">
-                                <div id="originalDataPlot" style="height: 350px;"></div>
+                <!-- Right panel: Plots -->
+                <div class="col-md-9">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-success text-white">
+                                    <h4 class="mb-0">Master Curve</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div id="masterCurvePlot"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5>Shift Factors</h5>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Original Data</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="originalDataPlot"></div>
+                                </div>
                             </div>
-                            <div class="card-body">
-                                <div id="shiftFactorPlot" style="height: 350px;"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Shift Factors</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="shiftFactorPlot"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -139,6 +126,502 @@
     <!-- Status messages -->
     <div id="statusMessage" class="status-message"></div>
     
-    <script src="{{ url_for('static', filename='js/manual_adjustment.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Manual Adjustment JavaScript
+        let ttsData = null;
+        let originalShiftFactors = {};
+        let currentShiftFactors = {};
+        let referenceTemp = null;
+
+        // Page load initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page loaded, fetching data...');
+            loadCurrentData();
+            setupEventListeners();
+        });
+
+        function loadCurrentData() {
+            fetch('/get_current_data')
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error('Failed to load data');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data:', data);
+                    
+                    if (data.error) {
+                        showMessage('No data available. Please run analysis first.', 'error');
+                        document.getElementById('loadingDiv').innerHTML = 
+                            '<p class="text-danger">No analysis data found. Please go back and run analysis first.</p>' +
+                            '<a href="/" class="btn btn-primary">Go to Analysis</a>';
+                        return;
+                    }
+                    
+                    // Store data
+                    ttsData = data;
+                    referenceTemp = data.reference_temperature || 25;
+                    
+                    // Initialize shift factors if they don't exist
+                    if (!data.shift_factors || Object.keys(data.shift_factors).length === 0) {
+                        console.error('No shift factors in data');
+                        showMessage('No shift factors found in data', 'error');
+                        return;
+                    }
+                    
+                    // Deep copy for preservation
+                    originalShiftFactors = JSON.parse(JSON.stringify(data.shift_factors));
+                    currentShiftFactors = JSON.parse(JSON.stringify(data.shift_factors));
+                    
+                    console.log('Reference temp:', referenceTemp);
+                    console.log('Shift factors keys:', Object.keys(currentShiftFactors));
+                    console.log('Shift factors:', currentShiftFactors);
+                    
+                    // Update display
+                    document.getElementById('refTempDisplay').textContent = referenceTemp + '°C';
+                    
+                    // Hide loading, show content
+                    document.getElementById('loadingDiv').style.display = 'none';
+                    document.getElementById('mainContent').style.display = 'block';
+                    
+                    // Create UI elements
+                    createSliders();
+                    updatePlots();
+                    updateTable();
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    document.getElementById('loadingDiv').innerHTML = 
+                        '<p class="text-danger">Error loading data: ' + error.message + '</p>' +
+                        '<a href="/" class="btn btn-primary">Go to Analysis</a>';
+                });
+        }
+
+        function createSliders() {
+            const container = document.getElementById('sliderContainer');
+            container.innerHTML = '';
+            
+            // Get all temperature keys as strings
+            const tempKeys = Object.keys(currentShiftFactors);
+            console.log('Temperature keys:', tempKeys);
+            
+            // Sort temperatures numerically
+            const sortedTempKeys = tempKeys.sort((a, b) => parseFloat(a) - parseFloat(b));
+            
+            sortedTempKeys.forEach(tempKey => {
+                const temp = parseFloat(tempKey);
+                
+                // Skip reference temperature
+                if (Math.abs(temp - referenceTemp) < 0.01) {
+                    console.log('Skipping reference temp:', temp);
+                    return;
+                }
+                
+                // Get the shift factor data
+                const shiftFactor = currentShiftFactors[tempKey];
+                if (!shiftFactor) {
+                    console.error('No shift factor for temp:', tempKey);
+                    return;
+                }
+                
+                const currentLogAT = shiftFactor.log_aT || 0;
+                console.log(`Creating slider for ${temp}°C with log_aT=${currentLogAT}`);
+                
+                const sliderId = `slider-${temp}`;
+                
+                const sliderHTML = `
+                    <div class="slider-container">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="slider-label">${temp}°C</span>
+                            <span class="slider-value" id="value-${temp}">${currentLogAT.toFixed(3)}</span>
+                        </div>
+                        <input type="range" 
+                               class="form-range temperature-slider" 
+                               id="${sliderId}"
+                               min="-3" 
+                               max="3" 
+                               step="0.01" 
+                               value="${currentLogAT}"
+                               data-temperature="${tempKey}">
+                    </div>
+                `;
+                
+                container.innerHTML += sliderHTML;
+            });
+            
+            // Add event listeners to sliders
+            sortedTempKeys.forEach(tempKey => {
+                const temp = parseFloat(tempKey);
+                if (Math.abs(temp - referenceTemp) < 0.01) return;
+                
+                const slider = document.getElementById(`slider-${temp}`);
+                if (slider) {
+                    slider.addEventListener('input', function(e) {
+                        handleSliderChange(tempKey, parseFloat(e.target.value));
+                    });
+                }
+            });
+        }
+
+        function handleSliderChange(tempKey, logATValue) {
+            const temp = parseFloat(tempKey);
+            
+            // Update values using string key
+            currentShiftFactors[tempKey] = {
+                aT: Math.pow(10, logATValue),
+                log_aT: logATValue
+            };
+            
+            // Update display
+            document.getElementById(`value-${temp}`).textContent = logATValue.toFixed(3);
+            
+            // Update plots
+            updatePlots();
+            updateTable();
+            
+            // Send to server
+            updateServerData(temp, logATValue);
+        }
+
+        function updateServerData(temperature, logATValue) {
+            fetch('/update_shift_factor', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    temperature: temperature,
+                    log_aT: logATValue
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== 'success') {
+                    console.error('Failed to update server');
+                }
+            })
+            .catch(error => {
+                console.error('Server update error:', error);
+            });
+        }
+
+        function updatePlots() {
+            try {
+                plotMasterCurve();
+                plotOriginalData();
+                plotShiftFactors();
+            } catch (error) {
+                console.error('Error updating plots:', error);
+            }
+        }
+
+        function plotMasterCurve() {
+            if (!ttsData || !ttsData.original_data) {
+                console.error('No data for master curve');
+                return;
+            }
+            
+            const traces = [];
+            const tempKeys = Object.keys(ttsData.original_data);
+            const colors = generateColors(tempKeys.length);
+            
+            tempKeys.forEach((tempKey, index) => {
+                const data = ttsData.original_data[tempKey];
+                const shiftFactor = currentShiftFactors[tempKey];
+                const aT = shiftFactor ? (shiftFactor.aT || 1) : 1;
+                
+                // Shifted data
+                const shiftedOmega = data.omega.map(w => w * aT);
+                
+                traces.push({
+                    x: shiftedOmega,
+                    y: data.modulus,
+                    mode: 'lines+markers',
+                    name: `${parseFloat(tempKey).toFixed(1)}°C`,
+                    line: { color: colors[index], width: 2 },
+                    marker: { size: 6 },
+                    type: 'scatter'
+                });
+            });
+            
+            const layout = {
+                title: `Master Curve (T<sub>ref</sub> = ${referenceTemp}°C)`,
+                xaxis: {
+                    title: 'ω·a<sub>T</sub> [rad/s]',
+                    type: 'log',
+                    gridcolor: '#e0e0e0',
+                    showgrid: true
+                },
+                yaxis: {
+                    title: "G' [Pa]",
+                    type: 'log',
+                    gridcolor: '#e0e0e0',
+                    showgrid: true
+                },
+                hovermode: 'closest',
+                showlegend: true,
+                height: 400
+            };
+            
+            Plotly.newPlot('masterCurvePlot', traces, layout);
+        }
+
+        function plotOriginalData() {
+            if (!ttsData || !ttsData.original_data) {
+                console.error('No data for original plot');
+                return;
+            }
+            
+            const traces = [];
+            const tempKeys = Object.keys(ttsData.original_data);
+            const colors = generateColors(tempKeys.length);
+            
+            tempKeys.forEach((tempKey, index) => {
+                const data = ttsData.original_data[tempKey];
+                
+                traces.push({
+                    x: data.omega,
+                    y: data.modulus,
+                    mode: 'lines+markers',
+                    name: `${parseFloat(tempKey).toFixed(1)}°C`,
+                    line: { color: colors[index], width: 2 },
+                    marker: { size: 5 },
+                    type: 'scatter'
+                });
+            });
+            
+            const layout = {
+                title: 'Original Data',
+                xaxis: {
+                    title: 'ω [rad/s]',
+                    type: 'log',
+                    gridcolor: '#e0e0e0',
+                    showgrid: true
+                },
+                yaxis: {
+                    title: "G' [Pa]",
+                    type: 'log',
+                    gridcolor: '#e0e0e0',
+                    showgrid: true
+                },
+                hovermode: 'closest',
+                showlegend: true,
+                height: 350
+            };
+            
+            Plotly.newPlot('originalDataPlot', traces, layout);
+        }
+
+        function plotShiftFactors() {
+            const tempKeys = Object.keys(currentShiftFactors);
+            const temperatures = tempKeys.map(t => parseFloat(t)).sort((a, b) => a - b);
+            
+            const currentLogATs = [];
+            const originalLogATs = [];
+            
+            temperatures.forEach(temp => {
+                const tempKey = temp.toString();
+                const currentSF = currentShiftFactors[tempKey];
+                const originalSF = originalShiftFactors[tempKey];
+                
+                currentLogATs.push(currentSF ? (currentSF.log_aT || 0) : 0);
+                originalLogATs.push(originalSF ? (originalSF.log_aT || 0) : 0);
+            });
+            
+            const traces = [
+                {
+                    x: temperatures,
+                    y: currentLogATs,
+                    mode: 'lines+markers',
+                    name: 'Current',
+                    line: { color: 'blue', width: 2 },
+                    marker: { size: 10 }
+                },
+                {
+                    x: temperatures,
+                    y: originalLogATs,
+                    mode: 'markers',
+                    name: 'Original (Auto)',
+                    marker: { 
+                        color: 'red', 
+                        size: 8,
+                        symbol: 'circle-open'
+                    }
+                }
+            ];
+            
+            const layout = {
+                title: 'Shift Factors',
+                xaxis: {
+                    title: 'Temperature [°C]',
+                    gridcolor: '#e0e0e0',
+                    showgrid: true
+                },
+                yaxis: {
+                    title: 'log(a<sub>T</sub>)',
+                    gridcolor: '#e0e0e0',
+                    showgrid: true,
+                    zeroline: true,
+                    zerolinecolor: '#ff0000',
+                    zerolinewidth: 1
+                },
+                shapes: [
+                    {
+                        type: 'line',
+                        x0: referenceTemp,
+                        y0: Math.min(...currentLogATs, ...originalLogATs) - 0.5,
+                        x1: referenceTemp,
+                        y1: Math.max(...currentLogATs, ...originalLogATs) + 0.5,
+                        line: {
+                            color: 'red',
+                            width: 1,
+                            dash: 'dash'
+                        }
+                    }
+                ],
+                hovermode: 'closest',
+                height: 350
+            };
+            
+            Plotly.newPlot('shiftFactorPlot', traces, layout);
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('shiftFactorTable');
+            tbody.innerHTML = '';
+            
+            const tempKeys = Object.keys(currentShiftFactors);
+            const sortedTempKeys = tempKeys.sort((a, b) => parseFloat(a) - parseFloat(b));
+            
+            sortedTempKeys.forEach(tempKey => {
+                const temp = parseFloat(tempKey);
+                const sf = currentShiftFactors[tempKey];
+                
+                if (!sf) {
+                    console.error('No shift factor for:', tempKey);
+                    return;
+                }
+                
+                const isRef = Math.abs(temp - referenceTemp) < 0.01;
+                
+                const row = `
+                    <tr class="${isRef ? 'ref-temp-row' : ''}">
+                        <td>${temp.toFixed(1)}</td>
+                        <td>${sf.aT ? sf.aT.toExponential(2) : '1.00e+0'}</td>
+                        <td>${sf.log_aT !== undefined ? sf.log_aT.toFixed(3) : '0.000'}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function setupEventListeners() {
+            // Reset button
+            document.getElementById('resetBtn').addEventListener('click', function() {
+                currentShiftFactors = JSON.parse(JSON.stringify(originalShiftFactors));
+                
+                // Reset sliders
+                Object.keys(currentShiftFactors).forEach(tempKey => {
+                    const temp = parseFloat(tempKey);
+                    if (Math.abs(temp - referenceTemp) < 0.01) return;
+                    
+                    const slider = document.getElementById(`slider-${temp}`);
+                    const sf = currentShiftFactors[tempKey];
+                    
+                    if (slider && sf) {
+                        slider.value = sf.log_aT || 0;
+                        document.getElementById(`value-${temp}`).textContent = 
+                            (sf.log_aT || 0).toFixed(3);
+                    }
+                });
+                
+                updatePlots();
+                updateTable();
+                showMessage('Reset to original values', 'success');
+            });
+            
+            // Save button
+            document.getElementById('saveBtn').addEventListener('click', function() {
+                const saveData = {
+                    reference_temperature: referenceTemp,
+                    shift_factors: currentShiftFactors,
+                    timestamp: new Date().toISOString()
+                };
+                
+                localStorage.setItem('tts_manual_adjustment', JSON.stringify(saveData));
+                showMessage('Settings saved to browser', 'success');
+            });
+            
+            // Export button
+            document.getElementById('exportBtn').addEventListener('click', function() {
+                showMessage('Exporting data...', 'info');
+                
+                fetch('/save_manual_adjustment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        reference_temperature: referenceTemp,
+                        original_data: ttsData.original_data,
+                        shift_factors: currentShiftFactors
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Create download link
+                        const link = document.createElement('a');
+                        link.href = data.download_url;
+                        link.download = data.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        showMessage('Excel file downloaded successfully', 'success');
+                    } else {
+                        throw new Error(data.error || 'Export failed');
+                    }
+                })
+                .catch(error => {
+                    showMessage('Export failed: ' + error.message, 'error');
+                });
+            });
+        }
+
+        function generateColors(count) {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                const hue = (i * 360 / count) % 360;
+                colors.push(`hsl(${hue}, 70%, 50%)`);
+            }
+            return colors;
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('statusMessage');
+            const alertClass = type === 'error' ? 'alert-danger' : 
+                              type === 'info' ? 'alert-info' : 'alert-success';
+            
+            messageDiv.innerHTML = `
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            // Auto dismiss after 3 seconds
+            setTimeout(() => {
+                const alert = messageDiv.querySelector('.alert');
+                if (alert) {
+                    alert.classList.remove('show');
+                    setTimeout(() => messageDiv.innerHTML = '', 150);
+                }
+            }, 3000);
+        }
+    </script>
 </body>
 </html>
