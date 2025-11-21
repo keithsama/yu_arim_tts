@@ -1,5 +1,5 @@
 """
-Time-Temperature Superposition Web Application
+YU-ARIM Time-Temperature Superposition Web Application
 Flask-based TTS analysis tool - Complete Version
 """
 
@@ -43,6 +43,45 @@ def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+
+# Create necessary directories
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs('static/results', exist_ok=True)
+os.makedirs('static/css', exist_ok=True)
+os.makedirs('static/js', exist_ok=True)
+os.makedirs('templates', exist_ok=True)
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+# ===== 追加 =====
+@app.route('/')
+def index():
+    """Main page"""
+    # テンプレートファイルが存在する場合
+    template_path = os.path.join('templates', 'index.html')
+    if os.path.exists(template_path):
+        return render_template('index.html')
+    
+    # テンプレートがない場合はJSONレスポンス（テスト用）
+    return jsonify({
+        'application': 'TTS Analysis Tool',
+        'status': 'running',
+        'version': '1.0.0',
+        'message': 'Welcome to TTS Analysis Tool',
+        'instructions': 'Use /upload to upload files, then /analyze to process',
+        'endpoints': {
+            'upload': {'path': '/upload', 'method': 'POST'},
+            'analyze': {'path': '/analyze', 'method': 'POST'},
+            'manual_adjustment': {'path': '/manual_adjustment', 'method': 'GET'},
+            'health': {'path': '/health', 'method': 'GET'},
+            'download': {'path': '/download/<filename>', 'method': 'GET'}
+        }
+    })
+# ===== ここまで =====
 
 @app.route('/download/<filename>')
 def download_file(filename):
