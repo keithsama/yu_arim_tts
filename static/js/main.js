@@ -213,3 +213,65 @@ function showLoading(show) {
         }
     }
 }// JavaScript Document
+
+// Add download functionality to main page
+document.addEventListener('DOMContentLoaded', function() {
+    // Existing code...
+    
+    // Add download button handler if it exists
+    const downloadBtn = document.getElementById('downloadBtn');
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', function() {
+            downloadResults();
+        });
+    }
+});
+
+function downloadResults() {
+    // Check if we have current TTS data
+    if (!currentTTS) {
+        alert('No results to download. Please run analysis first.');
+        return;
+    }
+    
+    // Prepare export data
+    const exportData = {
+        reference_temperature: currentTTS.reference_temperature,
+        original_data: currentTTS.original_data || {},
+        shift_factors: currentTTS.shift_factors || {},
+        method: currentTTS.method
+    };
+    
+    // Send to server
+    fetch('/save_manual_adjustment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(exportData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Download the file
+            window.location.href = data.download_url;
+            
+            // Show success message
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+            alertDiv.innerHTML = `
+                Results downloaded successfully: ${data.filename}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.getElementById('results').prepend(alertDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+    })
+    .catch(error => {
+        alert('Download failed: ' + error.message);
+    });
+}
