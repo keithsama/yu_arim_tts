@@ -46,3 +46,65 @@ body {
     align-items: center;
     z-index: 9999;
 }
+/*for manual_adjustment.html*/
+.slider-container {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+        }
+.slider-label {
+    font-weight: bold;
+    display: inline-block;
+    width: 80px;
+        }
+.slider-value {
+    display: inline-block;
+    width: 80px;
+    text-align: right;
+    font-family: monospace;
+    background-color: white;
+    padding: 2px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+        }
+.temperature-slider {
+    width: 100%;
+    margin: 10px 0;
+        }
+#masterCurvePlot, #originalDataPlot, #shiftFactorPlot {
+    height: 400px;
+    margin: 20px 0;
+        }
+.control-buttons {
+    margin: 20px 0;
+    text-align: center;
+        }
+.status-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+        }
+.loading {
+    text-align: center;
+    padding: 50px;
+        }
+.table-sm {
+    font-size: 0.9rem;
+        }
+.ref-temp-row {
+    background-color: #e7f3ff;
+     font-weight: bold;
+        }
+.debug-info {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 10px;
+            border: 1px solid #ddd;
+            font-size: 11px;
+            max-width: 300px;
+            display: none;
+        }
