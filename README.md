@@ -1,7 +1,7 @@
 <h1>山形大学エイリム, YU-ARIM</h1>
 共用装置：YG-001　ツインドライブ型レオメータ
 
-<a href="[https://nanonet.go.jp/data_service/](https://arim.yz.yamagata-u.ac.jp/eq_rheo.html)" target="_blank">ツインドライブ型レオメータの紹介</a></p>
+<p><a href="https://arim.yz.yamagata-u.ac.jp/eq_rheo.html" target="_blank">ツインドライブ型レオメータの紹介</a></p>
 
 <h2>時間温度換算則プロット自動生成ツール</h2>
 <p>このプログラムは、時間温度換算則（Time–Temperature Superposition, TTS） を用いて、任意の周波数依存データ（例：G’, G’’ など）からマスターカーブを自動生成し、プロットする Python ツールです。</p>
