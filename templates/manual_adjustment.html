@@ -142,63 +142,77 @@
         });
 
         function loadCurrentData() {
-            fetch('/get_current_data')
-                .then(response => {
-                    console.log('Response status:', response.status);
-                    if (!response.ok) {
-                        throw new Error('Failed to load data');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Received data:', data);
-                    
-                    if (data.error) {
-                        showMessage('No data available. Please run analysis first.', 'error');
-                        document.getElementById('loadingDiv').innerHTML = 
-                            '<p class="text-danger">No analysis data found. Please go back and run analysis first.</p>' +
-                            '<a href="/" class="btn btn-primary">Go to Analysis</a>';
-                        return;
-                    }
-                    
-                    // Store data
-                    ttsData = data;
-                    referenceTemp = data.reference_temperature || 25;
-                    
-                    // Initialize shift factors if they don't exist
-                    if (!data.shift_factors || Object.keys(data.shift_factors).length === 0) {
-                        console.error('No shift factors in data');
-                        showMessage('No shift factors found in data', 'error');
-                        return;
-                    }
-                    
-                    // Deep copy for preservation
-                    originalShiftFactors = JSON.parse(JSON.stringify(data.shift_factors));
-                    currentShiftFactors = JSON.parse(JSON.stringify(data.shift_factors));
-                    
-                    console.log('Reference temp:', referenceTemp);
-                    console.log('Shift factors keys:', Object.keys(currentShiftFactors));
-                    console.log('Shift factors:', currentShiftFactors);
-                    
-                    // Update display
-                    document.getElementById('refTempDisplay').textContent = referenceTemp + '°C';
-                    
-                    // Hide loading, show content
-                    document.getElementById('loadingDiv').style.display = 'none';
-                    document.getElementById('mainContent').style.display = 'block';
-                    
-                    // Create UI elements
-                    createSliders();
-                    updatePlots();
-                    updateTable();
-                })
-                .catch(error => {
-                    console.error('Error loading data:', error);
-                    document.getElementById('loadingDiv').innerHTML = 
-                        '<p class="text-danger">Error loading data: ' + error.message + '</p>' +
-                        '<a href="/" class="btn btn-primary">Go to Analysis</a>';
-                });
-        }
+    fetch('/get_current_data')
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error('Failed to load data');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            
+            if (data.error) {
+                showMessage('No data available. Please run analysis first.', 'error');
+                document.getElementById('loadingDiv').innerHTML = 
+                    '<p class="text-danger">No analysis data found. Please go back and run analysis first.</p>' +
+                    '<a href="/" class="btn btn-primary">Go to Analysis</a>';
+                return;
+            }
+            
+            // Store data
+            ttsData = data;
+            referenceTemp = data.reference_temperature || 25;
+            
+            // shift_factorsのデータ構造を確認
+            console.log('Original shift_factors structure:', data.shift_factors);
+            
+            // 各温度のシフトファクターを確認して修正
+            const fixedShiftFactors = {};
+            Object.keys(data.shift_factors).forEach(tempKey => {
+                const sf = data.shift_factors[tempKey];
+                
+                // log_aTが存在しない場合は計算
+                if (sf.aT !== undefined && sf.log_aT === undefined) {
+                    sf.log_aT = Math.log10(sf.aT);
+                }
+                
+                fixedShiftFactors[tempKey] = {
+                    aT: sf.aT || 1,
+                    log_aT: sf.log_aT || 0
+                };
+                
+                console.log(`Fixed shift factor for ${tempKey}°C:`, fixedShiftFactors[tempKey]);
+            });
+            
+            // Deep copy for preservation
+            originalShiftFactors = JSON.parse(JSON.stringify(fixedShiftFactors));
+            currentShiftFactors = JSON.parse(JSON.stringify(fixedShiftFactors));
+            
+            console.log('Reference temp:', referenceTemp);
+            console.log('Fixed shift factors:', currentShiftFactors);
+            
+            // Update display
+            document.getElementById('refTempDisplay').textContent = referenceTemp + '°C';
+            
+            // Hide loading, show content
+            document.getElementById('loadingDiv').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            
+            // Create UI elements
+            createSliders();
+            updatePlots();
+            updateTable();
+        })
+        .catch(error => {
+            console.error('Error loading data:', error);
+            document.getElementById('loadingDiv').innerHTML = 
+                '<p class="text-danger">Error loading data: ' + error.message + '</p>' +
+                '<a href="/" class="btn btn-primary">Go to Analysis</a>';
+        });
+}
+		
 
         function createSliders() {
             const container = document.getElementById('sliderContainer');
@@ -267,25 +281,32 @@
         }
 
         function handleSliderChange(tempKey, logATValue) {
-            const temp = parseFloat(tempKey);
-            
-            // Update values using string key
-            currentShiftFactors[tempKey] = {
-                aT: Math.pow(10, logATValue),
-                log_aT: logATValue
-            };
-            
-            // Update display
-            document.getElementById(`value-${temp}`).textContent = logATValue.toFixed(3);
-            
-            // Update plots
-            updatePlots();
-            updateTable();
-            
-            // Send to server
-            updateServerData(temp, logATValue);
-        }
-
+    		const temp = parseFloat(tempKey);
+    
+    		console.log(`Slider change: temp=${temp}°C, tempKey="${tempKey}", logAT=${logATValue}`);
+    
+    		// 値を確実に更新
+    		currentShiftFactors[tempKey] = {
+				aT: Math.pow(10, logATValue),
+        	log_aT: logATValue  // 明示的に設定
+			};
+    
+    		console.log('Updated shift factor:', currentShiftFactors[tempKey]);
+    
+    		// 表示を更新
+    		const valueElement = document.getElementById(`value-${temp}`);
+			if (valueElement) {
+        	valueElement.textContent = logATValue.toFixed(3);
+    }
+    
+    	// プロットとテーブルを更新
+    	updatePlots();
+    	updateTable();
+    
+    	// サーバーに送信
+    	updateServerData(temp, logATValue);
+}
+		
         function updateServerData(temperature, logATValue) {
             fetch('/update_shift_factor', {
                 method: 'POST',
@@ -417,44 +438,79 @@
 
         function plotShiftFactors() {
             const tempKeys = Object.keys(currentShiftFactors);
-            const temperatures = tempKeys.map(t => parseFloat(t)).sort((a, b) => a - b);
+            const sortedTempKeys = tempKeys.sort((a, b) => parseFloat(a) - parseFloat(b));
             
-            const currentLogATs = [];
+            const temperatures = [];
+			const currentLogATs = [];
             const originalLogATs = [];
             
-            temperatures.forEach(temp => {
-                const tempKey = temp.toString();
-                const currentSF = currentShiftFactors[tempKey];
-                const originalSF = originalShiftFactors[tempKey];
-                
-                currentLogATs.push(currentSF ? (currentSF.log_aT || 0) : 0);
-                originalLogATs.push(originalSF ? (originalSF.log_aT || 0) : 0);
-            });
-            
-            const traces = [
-                {
-                    x: temperatures,
-                    y: currentLogATs,
-                    mode: 'lines+markers',
-                    name: 'Current',
-                    line: { color: 'blue', width: 2 },
-                    marker: { size: 10 }
-                },
-                {
-                    x: temperatures,
-                    y: originalLogATs,
-                    mode: 'markers',
-                    name: 'Original (Auto)',
-                    marker: { 
-                        color: 'red', 
-                        size: 8,
-                        symbol: 'circle-open'
-                    }
-                }
-            ];
+            sortedTempKeys.forEach(tempKey => {
+        const temp = parseFloat(tempKey);
+        temperatures.push(temp);
+        
+        // 現在の値を取得（文字列キーでアクセス）
+        const currentSF = currentShiftFactors[tempKey];
+        const originalSF = originalShiftFactors[tempKey];
+        
+        // log_aTの値を取得（存在しない場合は計算）
+        let currentLogAT = 0;
+        let originalLogAT = 0;
+        
+        if (currentSF) {
+            if (currentSF.log_aT !== undefined && currentSF.log_aT !== null) {
+                currentLogAT = currentSF.log_aT;
+            } else if (currentSF.aT !== undefined && currentSF.aT > 0) {
+                currentLogAT = Math.log10(currentSF.aT);
+            }
+        }
+        
+        if (originalSF) {
+            if (originalSF.log_aT !== undefined && originalSF.log_aT !== null) {
+                originalLogAT = originalSF.log_aT;
+            } else if (originalSF.aT !== undefined && originalSF.aT > 0) {
+                originalLogAT = Math.log10(originalSF.aT);
+            }
+        }
+        
+        currentLogATs.push(currentLogAT);
+        originalLogATs.push(originalLogAT);
+        
+        console.log(`Temp ${temp}°C: current=${currentLogAT}, original=${originalLogAT}`);
+    });
+    
+    // 最小値と最大値を計算（Y軸範囲用）
+    const allLogATs = [...currentLogATs, ...originalLogATs].filter(v => !isNaN(v) && isFinite(v));
+    const minY = allLogATs.length > 0 ? Math.min(...allLogATs) - 0.5 : -3;
+    const maxY = allLogATs.length > 0 ? Math.max(...allLogATs) + 0.5 : 3;
+    
+    const traces = [
+        {
+            x: temperatures,
+            y: currentLogATs,
+            mode: 'lines+markers',
+            name: 'Current (Manual)',
+            line: { color: 'blue', width: 3 },
+            marker: { size: 10, color: 'blue' },
+            type: 'scatter'
+        },
+        {
+            x: temperatures,
+            y: originalLogATs,
+            mode: 'lines+markers',
+            name: 'Original (Auto)',
+            line: { color: 'red', width: 2, dash: 'dash' },
+            marker: { 
+                size: 8,
+                color: 'red',
+                symbol: 'circle-open',
+                line: { width: 2 }
+            },
+            type: 'scatter'
+        }
+    ];
             
             const layout = {
-                title: 'Shift Factors',
+                title: 'Shift Factors Comparison',
                 xaxis: {
                     title: 'Temperature [°C]',
                     gridcolor: '#e0e0e0',
@@ -467,24 +523,57 @@
                     zeroline: true,
                     zerolinecolor: '#ff0000',
                     zerolinewidth: 1
+					range: [minY, maxY]
                 },
                 shapes: [
+					//基準温度の垂直線
                     {
                         type: 'line',
                         x0: referenceTemp,
-                        y0: Math.min(...currentLogATs, ...originalLogATs) - 0.5,
+                        y0: minY,
                         x1: referenceTemp,
-                        y1: Math.max(...currentLogATs, ...originalLogATs) + 0.5,
+                        y1: maxY,
                         line: {
-                            color: 'red',
-                            width: 1,
+                            color: 'green',
+                            width: 2,
                             dash: 'dash'
                         }
-                    }
+                    },
+					// y=0の水平線（強調）
+				{
+                	type: 'line',
+                	x0: Math.min(...temperatures) - 5,
+                	y0: 0,
+                	x1: Math.max(...temperatures) + 5,
+                	y1: 0,
+                	line: {
+                    	color: 'black',
+						width: 1
+						}
+					}
                 ],
-                hovermode: 'closest',
-                height: 350
-            };
+				annotations: [
+            {
+                x: referenceTemp,
+                y: maxY * 0.9,
+                text: `T<sub>ref</sub>=${referenceTemp}°C`,
+                showarrow: false,
+                bgcolor: 'rgba(255, 255, 255, 0.8)',
+                bordercolor: 'green',
+                borderwidth: 1
+            }
+        ],
+        hovermode: 'x unified',
+        showlegend: true,
+        legend: {
+            x: 0.02,
+            y: 0.98,
+            bgcolor: 'rgba(255, 255, 255, 0.9)',
+            bordercolor: '#000000',
+            borderwidth: 1
+        },
+        height: 350
+    };
             
             Plotly.newPlot('shiftFactorPlot', traces, layout);
         }
