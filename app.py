@@ -44,10 +44,167 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-@app.route('/')
-def index():
-    """Main page"""
-    return render_template('index.html')
+@app.route('/download/<filename>')
+def download_file(filename):
+    """Download result file"""
+    try:
+        # Security check - ensure filename is safe
+        filename = secure_filename(filename)
+        
+        # Try different possible locations
+        possible_paths = [
+            os.path.join('static', 'results', filename),
+            os.path.join(app.config['UPLOAD_FOLDER'], filename),
+            filename
+        ]
+        
+        filepath = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                filepath = path
+                break
+        
+        if filepath:
+            app.logger.info(f"Downloading file from: {filepath}")
+            return send_file(
+                filepath, 
+                as_attachment=True,
+                download_name=filename,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+        else:
+            app.logger.error(f"File not found in any location: {filename}")
+            return jsonify({'error': f'File not found: {filename}'}), 404
+            
+    except Exception as e:
+        app.logger.error(f"Download error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/save_manual_adjustment', methods=['POST'])
+def save_manual_adjustment():
+    """Save manual adjustment results - Fixed version"""
+    try:
+        data = request.json
+        
+        # Create results directory if it doesn't exist
+        results_dir = os.path.join('static', 'results')
+        os.makedirs(results_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f'manual_adjustment_{timestamp}.xlsx'
+        filepath = os.path.join(results_dir, filename)
+        
+        app.logger.info(f"Saving manual adjustment to: {filepath}")
+        
+        # Create Excel file with manual adjustment results
+        export_manual_results(data, filepath)
+        
+        # Verify file was created
+        if os.path.exists(filepath):
+            file_size = os.path.getsize(filepath)
+            app.logger.info(f"File created successfully: {filepath} ({file_size} bytes)")
+            
+            return jsonify({
+                'status': 'success',
+                'filename': filename,
+                'download_url': f'/download/{filename}',
+                'file_size': file_size
+            })
+        else:
+            raise Exception("File was not created")
+        
+    except Exception as e:
+        app.logger.error(f"Save manual adjustment error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+def export_manual_results(data, filepath):
+    """Export manual adjustment results to Excel - Fixed version"""
+    try:
+        import openpyxl  # Ensure openpyxl is imported
+        
+        # Create a new workbook
+        with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+            # Master curve data
+            all_data = []
+            
+            # Check if we have the required data
+            if 'original_data' not in data:
+                raise ValueError("No original_data in request")
+            
+            if 'shift_factors' not in data:
+                raise ValueError("No shift_factors in request")
+            
+            for temp_str, temp_data in data.get('original_data', {}).items():
+                try:
+                    temp = float(temp_str)
+                    sf = data.get('shift_factors', {}).get(temp_str, {})
+                    aT = sf.get('aT', 1.0)
+                    log_aT = sf.get('log_aT', 0.0)
+                    
+                    omega_list = temp_data.get('omega', [])
+                    modulus_list = temp_data.get('modulus', [])
+                    
+                    for i in range(len(omega_list)):
+                        all_data.append({
+                            'Temperature [°C]': temp,
+                            'ω [rad/s]': omega_list[i],
+                            "G' [Pa]": modulus_list[i],
+                            'aT': aT,
+                            'log(aT)': log_aT,
+                            'ω·aT [rad/s]': omega_list[i] * aT
+                        })
+                except Exception as e:
+                    app.logger.error(f"Error processing temp {temp_str}: {str(e)}")
+                    continue
+            
+            if all_data:
+                df = pd.DataFrame(all_data)
+                df.to_excel(writer, sheet_name='Master Curve Data', index=False)
+                app.logger.info(f"Wrote {len(all_data)} rows to Master Curve Data sheet")
+            
+            # Shift factors sheet
+            shift_data = []
+            for temp_str, sf in data.get('shift_factors', {}).items():
+                try:
+                    shift_data.append({
+                        'Temperature [°C]': float(temp_str),
+                        'aT': sf.get('aT', 1.0),
+                        'log(aT)': sf.get('log_aT', 0.0)
+                    })
+                except Exception as e:
+                    app.logger.error(f"Error processing shift factor for {temp_str}: {str(e)}")
+                    continue
+            
+            if shift_data:
+                df_shift = pd.DataFrame(shift_data)
+                df_shift = df_shift.sort_values('Temperature [°C]')
+                df_shift.to_excel(writer, sheet_name='Shift Factors', index=False)
+                app.logger.info(f"Wrote {len(shift_data)} rows to Shift Factors sheet")
+            
+            # Parameters sheet
+            params_data = {
+                'Parameter': [
+                    'Reference Temperature [°C]',
+                    'Export Date',
+                    'Export Time',
+                    'Adjustment Type'
+                ],
+                'Value': [
+                    data.get('reference_temperature', 'N/A'),
+                    datetime.now().strftime("%Y-%m-%d"),
+                    datetime.now().strftime("%H:%M:%S"),
+                    'Manual'
+                ]
+            }
+            
+            df_params = pd.DataFrame(params_data)
+            df_params.to_excel(writer, sheet_name='Parameters', index=False)
+            
+        app.logger.info(f"Excel file created successfully: {filepath}")
+        
+    except Exception as e:
+        app.logger.error(f"Export error details: {str(e)}")
+        raise
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
