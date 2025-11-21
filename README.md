@@ -14,6 +14,8 @@
 <h3>How to Use/使い方</h3>
 <p>テンプレートエクセル、A列（Frequency [rad/s]）,B列（Storage Modulus [Pa]）, C列（Loss modulus [Pa]）となっています。それぞれデータをA2, B2, C3から下へコピーしてください。エクセルファイルの名前を温度に変更します。（例えば180度なら180.xlsx）ご自身の粘弾性データを使用される場合も同様です。</p>
 
+テンプレート.xlsx(.template.xlsx)
+
 
 
 <p>STEP 1 ファイルをアップロード </p>
