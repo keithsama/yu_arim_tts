@@ -6,19 +6,27 @@
     <title>Manual Adjustment - TTS Analysis</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 	<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- Plotly最新版を明示的に指定 -->
+    <!-- Plotly最新版 -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 </head>
 <body>
     <div class="container-fluid mt-3">
-        <h1 class="text-center mb-4">Manual Shift Factor Adjustment</h1>
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="text-center">
+                    <span class="text-primary">Manual Shift Factor Adjustment</span>
+                </h1>
+                <p class="text-center text-muted">Fine-tune your master curve by adjusting shift factors</p>
+            </div>
+        </div>
         
         <!-- Loading indicator -->
         <div id="loadingDiv" class="loading">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <p class="mt-3">Loading data...</p>
+            <p class="mt-3 text-muted">Loading analysis data...</p>
         </div>
         
         <!-- Main content (hidden initially) -->
@@ -26,83 +34,91 @@
             <div class="row">
                 <!-- Left panel: Controls -->
                 <div class="col-md-3">
-                    <div class="card">
+                    <!-- Control Panel Card -->
+                    <div class="card mb-3">
                         <div class="card-header bg-primary text-white">
-                            <h4 class="mb-0">Shift Factor Controls</h4>
+                            <h5 class="mb-0">⚙️ Shift Factor Controls</h5>
                         </div>
                         <div class="card-body">
                             <div id="sliderContainer">
                                 <!-- Sliders will be added dynamically -->
                             </div>
                             
-                            <div class="control-buttons mt-4">
-                                <button id="resetBtn" class="btn btn-warning btn-sm w-100 mb-2">
-                                    🔄 Reset to Auto
+                            <hr class="my-3">
+                            
+                            <div class="control-buttons">
+                                <button id="resetBtn" class="btn btn-warning w-100 mb-2">
+                                    🔄 Reset to Original
                                 </button>
-                                <button id="saveBtn" class="btn btn-success btn-sm w-100 mb-2">
-                                    💾 Save Settings
+                                <button id="saveBtn" class="btn btn-success w-100 mb-2">
+                                    💾 Save to Browser
                                 </button>
-                                <button id="exportBtn" class="btn btn-info btn-sm w-100">
-                                    📥 Export Excel
+                                <button id="exportBtn" class="btn btn-info w-100">
+                                    📥 Export to Excel
                                 </button>
                             </div>
                             
-                            <div class="mt-4 p-3 bg-light rounded">
-                                <h5 class="text-center">Reference Temperature</h5>
-                                <p id="refTempDisplay" class="text-center fs-3 mb-0 text-primary">-</p>
+                            <div class="mt-4 p-3 bg-light rounded text-center">
+                                <small class="text-muted">Reference Temperature</small>
+                                <p id="refTempDisplay" class="fs-3 mb-0 text-primary font-weight-bold">-</p>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Shift factor table -->
-                    <div class="card mt-3">
+                    <div class="card mb-3">
                         <div class="card-header bg-secondary text-white">
-                            <h5 class="mb-0">Current Values</h5>
+                            <h6 class="mb-0">📊 Current Values</h6>
                         </div>
                         <div class="card-body p-2">
-                            <table class="table table-sm table-hover">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>T (°C)</th>
-                                        <th>aT</th>
-                                        <th>log(aT)</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shiftFactorTable">
-                                    <!-- Data will be added dynamically -->
-                                </tbody>
-                            </table>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>T (°C)</th>
+                                            <th>a<sub>T</sub></th>
+                                            <th>log(a<sub>T</sub>)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="shiftFactorTable">
+                                        <!-- Data will be added dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- Back button -->
-                    <div class="mt-3">
-                        <a href="/" class="btn btn-secondary w-100">← Back to Analysis</a>
+                    <!-- Navigation -->
+                    <div class="d-grid gap-2">
+                        <a href="/" class="btn btn-outline-secondary">
+                            ← Back to Analysis
+                        </a>
+                        <button id="debugBtn" class="btn btn-sm btn-outline-dark">
+                            🐛 Debug Info
+                        </button>
                     </div>
                 </div>
                 
                 <!-- Right panel: Plots -->
                 <div class="col-md-9">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header bg-success text-white">
-                                    <h4 class="mb-0">Master Curve</h4>
-                                </div>
-                                <div class="card-body">
-                                    <div id="masterCurvePlot"></div>
-                                </div>
-                            </div>
+                    <!-- Master Curve -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">📈 Master Curve</h5>
+                        </div>
+                        <div class="card-body plot-container">
+                            <div id="masterCurvePlot"></div>
                         </div>
                     </div>
                     
-                    <div class="row mt-3">
+                    <!-- Original Data and Shift Factors -->
+                    <div class="row">
                         <div class="col-md-6">
                             <div class="card">
                                 <div class="card-header">
-                                    <h5 class="mb-0">Original Data</h5>
+                                    <h6 class="mb-0">📊 Original Data</h6>
                                 </div>
-                                <div class="card-body">
+                                <div class="card-body plot-container">
                                     <div id="originalDataPlot"></div>
                                 </div>
                             </div>
@@ -110,9 +126,9 @@
                         <div class="col-md-6">
                             <div class="card">
                                 <div class="card-header">
-                                    <h5 class="mb-0">Shift Factors</h5>
+                                    <h6 class="mb-0">📉 Shift Factors</h6>
                                 </div>
-                                <div class="card-body">
+                                <div class="card-body plot-container">
                                     <div id="shiftFactorPlot"></div>
                                 </div>
                             </div>
@@ -126,41 +142,54 @@
     <!-- Status messages -->
     <div id="statusMessage" class="status-message"></div>
     
-    <!-- Debug info (optional) -->
-    <div id="debugInfo" class="debug-info"></div>
+    <!-- Debug panel -->
+    <div id="debugPanel" class="debug-panel">
+        <strong>Debug Info:</strong>
+        <div id="debugContent"></div>
+        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="toggleDebug()">Close</button>
+    </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Manual Adjustment JavaScript
+        // ==================== GLOBAL VARIABLES ====================
         let ttsData = null;
         let originalShiftFactors = {};
         let currentShiftFactors = {};
         let referenceTemp = null;
+        let debugMode = false;
 
-        // Page load initialization
+        // ==================== INITIALIZATION ====================
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Page loaded, fetching data...');
+            console.log('🚀 Manual Adjustment Page Loaded');
             loadCurrentData();
             setupEventListeners();
         });
 
+        // ==================== DATA LOADING ====================
         function loadCurrentData() {
+            console.log('📡 Fetching analysis data...');
+            
             fetch('/get_current_data')
                 .then(response => {
                     console.log('Response status:', response.status);
                     if (!response.ok) {
-                        throw new Error('Failed to load data');
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Received data:', data);
+                    console.log('✅ Data received:', data);
                     
                     if (data.error) {
-                        showMessage('No data available. Please run analysis first.', 'error');
-                        document.getElementById('loadingDiv').innerHTML = 
-                            '<p class="text-danger">No analysis data found. Please go back and run analysis first.</p>' +
-                            '<a href="/" class="btn btn-primary">Go to Analysis</a>';
+                        showNoDataMessage();
+                        return;
+                    }
+                    
+                    // Validate and store data
+                    if (!data.shift_factors || Object.keys(data.shift_factors).length === 0) {
+                        console.error('❌ No shift factors in data');
+                        showMessage('No shift factors found in data', 'error');
+                        showNoDataMessage();
                         return;
                     }
                     
@@ -168,90 +197,106 @@
                     ttsData = data;
                     referenceTemp = data.reference_temperature || 25;
                     
-                    // shift_factorsのデータ構造を確認して修正
-                    console.log('Original shift_factors structure:', data.shift_factors);
-                    
-                    const fixedShiftFactors = {};
-                    Object.keys(data.shift_factors).forEach(tempKey => {
-                        const sf = data.shift_factors[tempKey];
-                        
-                        // log_aTが存在しない場合は計算
-                        let logAT = sf.log_aT;
-                        if ((logAT === undefined || logAT === null) && sf.aT !== undefined && sf.aT > 0) {
-                            logAT = Math.log10(sf.aT);
-                        }
-                        
-                        fixedShiftFactors[tempKey] = {
-                            aT: sf.aT || 1,
-                            log_aT: logAT || 0
-                        };
-                        
-                        console.log(`Fixed shift factor for ${tempKey}°C:`, fixedShiftFactors[tempKey]);
-                    });
-                    
-                    // Deep copy for preservation
+                    // Fix and store shift factors
+                    const fixedShiftFactors = fixShiftFactors(data.shift_factors);
                     originalShiftFactors = JSON.parse(JSON.stringify(fixedShiftFactors));
                     currentShiftFactors = JSON.parse(JSON.stringify(fixedShiftFactors));
                     
+                    console.log('📊 Data processed successfully');
                     console.log('Reference temp:', referenceTemp);
-                    console.log('Fixed shift factors:', currentShiftFactors);
+                    console.log('Number of temperatures:', Object.keys(currentShiftFactors).length);
                     
-                    // Update display
-                    document.getElementById('refTempDisplay').textContent = referenceTemp + '°C';
-                    
-                    // Hide loading, show content
-                    document.getElementById('loadingDiv').style.display = 'none';
-                    document.getElementById('mainContent').style.display = 'block';
-                    
-                    // Create UI elements
-                    createSliders();
-                    updatePlots();
-                    updateTable();
+                    // Initialize UI
+                    initializeUI();
                 })
                 .catch(error => {
-                    console.error('Error loading data:', error);
-                    document.getElementById('loadingDiv').innerHTML = 
-                        '<p class="text-danger">Error loading data: ' + error.message + '</p>' +
-                        '<a href="/" class="btn btn-primary">Go to Analysis</a>';
+                    console.error('❌ Error loading data:', error);
+                    showErrorMessage(error);
                 });
         }
 
+        function fixShiftFactors(shiftFactors) {
+            const fixed = {};
+            Object.keys(shiftFactors).forEach(tempKey => {
+                const sf = shiftFactors[tempKey];
+                let logAT = sf.log_aT;
+                
+                // Calculate log_aT if missing
+                if ((logAT === undefined || logAT === null) && sf.aT !== undefined && sf.aT > 0) {
+                    logAT = Math.log10(sf.aT);
+                }
+                
+                fixed[tempKey] = {
+                    aT: sf.aT || 1,
+                    log_aT: logAT || 0
+                };
+            });
+            return fixed;
+        }
+
+        function initializeUI() {
+            // Update reference temperature display
+            document.getElementById('refTempDisplay').textContent = referenceTemp.toFixed(1) + '°C';
+            
+            // Hide loading, show content
+            document.getElementById('loadingDiv').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            
+            // Create UI elements
+            createSliders();
+            updatePlots();
+            updateTable();
+            
+            showMessage('Data loaded successfully', 'success');
+        }
+
+        function showNoDataMessage() {
+            document.getElementById('loadingDiv').innerHTML = `
+                <div class="alert alert-warning">
+                    <h4>No Analysis Data Found</h4>
+                    <p>Please run an analysis first before adjusting shift factors.</p>
+                    <a href="/" class="btn btn-primary">Go to Analysis</a>
+                </div>
+            `;
+        }
+
+        function showErrorMessage(error) {
+            document.getElementById('loadingDiv').innerHTML = `
+                <div class="alert alert-danger">
+                    <h4>Error Loading Data</h4>
+                    <p>${error.message}</p>
+                    <a href="/" class="btn btn-primary">Go to Analysis</a>
+                </div>
+            `;
+        }
+
+        // ==================== SLIDER CREATION ====================
         function createSliders() {
             const container = document.getElementById('sliderContainer');
             container.innerHTML = '';
             
-            // Get all temperature keys as strings
             const tempKeys = Object.keys(currentShiftFactors);
-            console.log('Temperature keys:', tempKeys);
-            
-            // Sort temperatures numerically
             const sortedTempKeys = tempKeys.sort((a, b) => parseFloat(a) - parseFloat(b));
+            
+            console.log('🎚️ Creating sliders for', sortedTempKeys.length, 'temperatures');
             
             sortedTempKeys.forEach(tempKey => {
                 const temp = parseFloat(tempKey);
                 
                 // Skip reference temperature
                 if (Math.abs(temp - referenceTemp) < 0.01) {
-                    console.log('Skipping reference temp:', temp);
                     return;
                 }
                 
-                // Get the shift factor data
                 const shiftFactor = currentShiftFactors[tempKey];
-                if (!shiftFactor) {
-                    console.error('No shift factor for temp:', tempKey);
-                    return;
-                }
-                
                 const currentLogAT = shiftFactor.log_aT || 0;
-                console.log(`Creating slider for ${temp}°C with log_aT=${currentLogAT}`);
                 
                 const sliderId = `slider-${temp}`;
                 
                 const sliderHTML = `
                     <div class="slider-container">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="slider-label">${temp}°C</span>
+                            <span class="slider-label">${temp.toFixed(1)}°C</span>
                             <span class="slider-value" id="value-${temp}">${currentLogAT.toFixed(3)}</span>
                         </div>
                         <input type="range" 
@@ -262,6 +307,11 @@
                                step="0.01" 
                                value="${currentLogAT}"
                                data-temperature="${tempKey}">
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">-3</small>
+                            <small class="text-muted">0</small>
+                            <small class="text-muted">+3</small>
+                        </div>
                     </div>
                 `;
                 
@@ -282,31 +332,33 @@
             });
         }
 
+        // ==================== SLIDER HANDLING ====================
         function handleSliderChange(tempKey, logATValue) {
             const temp = parseFloat(tempKey);
             
-            console.log(`Slider change: temp=${temp}°C, tempKey="${tempKey}", logAT=${logATValue}`);
-            
-            // 値を確実に更新
+            // Update values
             currentShiftFactors[tempKey] = {
                 aT: Math.pow(10, logATValue),
                 log_aT: logATValue
             };
             
-            console.log('Updated shift factor:', currentShiftFactors[tempKey]);
-            
-            // 表示を更新
+            // Update display
             const valueElement = document.getElementById(`value-${temp}`);
             if (valueElement) {
                 valueElement.textContent = logATValue.toFixed(3);
             }
             
-            // プロットとテーブルを更新
+            // Update plots and table
             updatePlots();
             updateTable();
             
-            // サーバーに送信
+            // Send to server
             updateServerData(temp, logATValue);
+            
+            // Update debug info if visible
+            if (debugMode) {
+                updateDebugInfo();
+            }
         }
 
         function updateServerData(temperature, logATValue) {
@@ -331,6 +383,7 @@
             });
         }
 
+        // ==================== PLOTTING FUNCTIONS ====================
         function updatePlots() {
             try {
                 plotMasterCurve();
@@ -338,14 +391,12 @@
                 plotShiftFactors();
             } catch (error) {
                 console.error('Error updating plots:', error);
+                showMessage('Error updating plots: ' + error.message, 'error');
             }
         }
 
         function plotMasterCurve() {
-            if (!ttsData || !ttsData.original_data) {
-                console.error('No data for master curve');
-                return;
-            }
+            if (!ttsData || !ttsData.original_data) return;
             
             const traces = [];
             const tempKeys = Object.keys(ttsData.original_data);
@@ -356,7 +407,6 @@
                 const shiftFactor = currentShiftFactors[tempKey];
                 const aT = shiftFactor ? (shiftFactor.aT || 1) : 1;
                 
-                // Shifted data
                 const shiftedOmega = data.omega.map(w => w * aT);
                 
                 traces.push({
@@ -371,7 +421,7 @@
             });
             
             const layout = {
-                title: `Master Curve (T<sub>ref</sub> = ${referenceTemp}°C)`,
+                title: `Master Curve (T<sub>ref</sub> = ${referenceTemp.toFixed(1)}°C)`,
                 xaxis: {
                     title: 'ω·a<sub>T</sub> [rad/s]',
                     type: 'log',
@@ -386,17 +436,15 @@
                 },
                 hovermode: 'closest',
                 showlegend: true,
-                height: 400
+                height: 420,
+                margin: { t: 50, b: 50, l: 60, r: 20 }
             };
             
-            Plotly.newPlot('masterCurvePlot', traces, layout);
+            Plotly.newPlot('masterCurvePlot', traces, layout, {responsive: true});
         }
 
         function plotOriginalData() {
-            if (!ttsData || !ttsData.original_data) {
-                console.error('No data for original plot');
-                return;
-            }
+            if (!ttsData || !ttsData.original_data) return;
             
             const traces = [];
             const tempKeys = Object.keys(ttsData.original_data);
@@ -432,14 +480,14 @@
                 },
                 hovermode: 'closest',
                 showlegend: true,
-                height: 350
+                height: 350,
+                margin: { t: 40, b: 50, l: 60, r: 20 }
             };
             
-            Plotly.newPlot('originalDataPlot', traces, layout);
+            Plotly.newPlot('originalDataPlot', traces, layout, {responsive: true});
         }
 
         function plotShiftFactors() {
-            // すべての温度キーを取得して数値順にソート
             const tempKeys = Object.keys(currentShiftFactors);
             const sortedTempKeys = tempKeys.sort((a, b) => parseFloat(a) - parseFloat(b));
             
@@ -447,45 +495,32 @@
             const currentLogATs = [];
             const originalLogATs = [];
             
-            console.log('Plotting shift factors...');
-            console.log('Current shift factors:', currentShiftFactors);
-            console.log('Original shift factors:', originalShiftFactors);
-            
             sortedTempKeys.forEach(tempKey => {
                 const temp = parseFloat(tempKey);
                 temperatures.push(temp);
                 
-                // 現在の値を取得（文字列キーでアクセス）
                 const currentSF = currentShiftFactors[tempKey];
                 const originalSF = originalShiftFactors[tempKey];
                 
-                // log_aTの値を取得（存在しない場合は計算）
                 let currentLogAT = 0;
                 let originalLogAT = 0;
                 
-                if (currentSF) {
-                    if (currentSF.log_aT !== undefined && currentSF.log_aT !== null) {
-                        currentLogAT = currentSF.log_aT;
-                    } else if (currentSF.aT !== undefined && currentSF.aT > 0) {
-                        currentLogAT = Math.log10(currentSF.aT);
-                    }
+                if (currentSF && currentSF.log_aT !== undefined) {
+                    currentLogAT = currentSF.log_aT;
+                } else if (currentSF && currentSF.aT > 0) {
+                    currentLogAT = Math.log10(currentSF.aT);
                 }
                 
-                if (originalSF) {
-                    if (originalSF.log_aT !== undefined && originalSF.log_aT !== null) {
-                        originalLogAT = originalSF.log_aT;
-                    } else if (originalSF.aT !== undefined && originalSF.aT > 0) {
-                        originalLogAT = Math.log10(originalSF.aT);
-                    }
+                if (originalSF && originalSF.log_aT !== undefined) {
+                    originalLogAT = originalSF.log_aT;
+                } else if (originalSF && originalSF.aT > 0) {
+                    originalLogAT = Math.log10(originalSF.aT);
                 }
                 
                 currentLogATs.push(currentLogAT);
                 originalLogATs.push(originalLogAT);
-                
-                console.log(`Temp ${temp}°C: current=${currentLogAT}, original=${originalLogAT}`);
             });
             
-            // 最小値と最大値を計算（Y軸範囲用）
             const allLogATs = [...currentLogATs, ...originalLogATs].filter(v => !isNaN(v) && isFinite(v));
             const minY = allLogATs.length > 0 ? Math.min(...allLogATs) - 0.5 : -3;
             const maxY = allLogATs.length > 0 ? Math.max(...allLogATs) + 0.5 : 3;
@@ -496,8 +531,8 @@
                     y: currentLogATs,
                     mode: 'lines+markers',
                     name: 'Current (Manual)',
-                    line: { color: 'blue', width: 3 },
-                    marker: { size: 10, color: 'blue' },
+                    line: { color: '#0066cc', width: 3 },
+                    marker: { size: 10, color: '#0066cc' },
                     type: 'scatter'
                 },
                 {
@@ -505,10 +540,10 @@
                     y: originalLogATs,
                     mode: 'lines+markers',
                     name: 'Original (Auto)',
-                    line: { color: 'red', width: 2, dash: 'dash' },
+                    line: { color: '#ff6600', width: 2, dash: 'dash' },
                     marker: { 
                         size: 8,
-                        color: 'red',
+                        color: '#ff6600',
                         symbol: 'circle-open',
                         line: { width: 2 }
                     },
@@ -521,8 +556,7 @@
                 xaxis: {
                     title: 'Temperature [°C]',
                     gridcolor: '#e0e0e0',
-                    showgrid: true,
-                    zeroline: false
+                    showgrid: true
                 },
                 yaxis: {
                     title: 'log(a<sub>T</sub>)',
@@ -534,7 +568,6 @@
                     range: [minY, maxY]
                 },
                 shapes: [
-                    // 基準温度の垂直線
                     {
                         type: 'line',
                         x0: referenceTemp,
@@ -546,27 +579,15 @@
                             width: 2,
                             dash: 'dash'
                         }
-                    },
-                    // y=0の水平線（強調）
-                    {
-                        type: 'line',
-                        x0: Math.min(...temperatures) - 5,
-                        y0: 0,
-                        x1: Math.max(...temperatures) + 5,
-                        y1: 0,
-                        line: {
-                            color: 'black',
-                            width: 1
-                        }
                     }
                 ],
                 annotations: [
                     {
                         x: referenceTemp,
                         y: maxY * 0.9,
-                        text: `T<sub>ref</sub>=${referenceTemp}°C`,
+                        text: `T<sub>ref</sub>`,
                         showarrow: false,
-                        bgcolor: 'rgba(255, 255, 255, 0.8)',
+                        bgcolor: 'rgba(255, 255, 255, 0.9)',
                         bordercolor: 'green',
                         borderwidth: 1
                     }
@@ -580,12 +601,14 @@
                     bordercolor: '#000000',
                     borderwidth: 1
                 },
-                height: 350
+                height: 350,
+                margin: { t: 40, b: 50, l: 60, r: 20 }
             };
             
-            Plotly.newPlot('shiftFactorPlot', traces, layout);
+            Plotly.newPlot('shiftFactorPlot', traces, layout, {responsive: true});
         }
 
+        // ==================== TABLE UPDATE ====================
         function updateTable() {
             const tbody = document.getElementById('shiftFactorTable');
             tbody.innerHTML = '';
@@ -597,98 +620,130 @@
                 const temp = parseFloat(tempKey);
                 const sf = currentShiftFactors[tempKey];
                 
-                if (!sf) {
-                    console.error('No shift factor for:', tempKey);
-                    return;
-                }
+                if (!sf) return;
                 
                 const isRef = Math.abs(temp - referenceTemp) < 0.01;
                 
-                const row = `
-                    <tr class="${isRef ? 'ref-temp-row' : ''}">
-                        <td>${temp.toFixed(1)}</td>
-                        <td>${sf.aT ? sf.aT.toExponential(2) : '1.00e+0'}</td>
-                        <td>${sf.log_aT !== undefined ? sf.log_aT.toFixed(3) : '0.000'}</td>
-                    </tr>
+                const row = document.createElement('tr');
+                if (isRef) {
+                    row.className = 'ref-temp-row';
+                }
+                
+                row.innerHTML = `
+                    <td>${temp.toFixed(1)}</td>
+                    <td>${sf.aT ? sf.aT.toExponential(2) : '1.00e+0'}</td>
+                    <td>${sf.log_aT !== undefined ? sf.log_aT.toFixed(3) : '0.000'}</td>
                 `;
-                tbody.innerHTML += row;
+                tbody.appendChild(row);
             });
         }
 
+        // ==================== EVENT LISTENERS ====================
         function setupEventListeners() {
             // Reset button
-            document.getElementById('resetBtn').addEventListener('click', function() {
-                currentShiftFactors = JSON.parse(JSON.stringify(originalShiftFactors));
-                
-                // Reset sliders
-                Object.keys(currentShiftFactors).forEach(tempKey => {
-                    const temp = parseFloat(tempKey);
-                    if (Math.abs(temp - referenceTemp) < 0.01) return;
-                    
-                    const slider = document.getElementById(`slider-${temp}`);
-                    const sf = currentShiftFactors[tempKey];
-                    
-                    if (slider && sf) {
-                        slider.value = sf.log_aT || 0;
-                        document.getElementById(`value-${temp}`).textContent = 
-                            (sf.log_aT || 0).toFixed(3);
-                    }
-                });
-                
-                updatePlots();
-                updateTable();
-                showMessage('Reset to original values', 'success');
-            });
+            document.getElementById('resetBtn').addEventListener('click', handleReset);
             
             // Save button
-            document.getElementById('saveBtn').addEventListener('click', function() {
-                const saveData = {
-                    reference_temperature: referenceTemp,
-                    shift_factors: currentShiftFactors,
-                    timestamp: new Date().toISOString()
-                };
-                
-                localStorage.setItem('tts_manual_adjustment', JSON.stringify(saveData));
-                showMessage('Settings saved to browser', 'success');
-            });
+            document.getElementById('saveBtn').addEventListener('click', handleSave);
             
             // Export button
-            document.getElementById('exportBtn').addEventListener('click', function() {
-                showMessage('Exporting data...', 'info');
+            document.getElementById('exportBtn').addEventListener('click', handleExport);
+            
+            // Debug button
+            document.getElementById('debugBtn').addEventListener('click', toggleDebug);
+        }
+
+        function handleReset() {
+            console.log('🔄 Resetting to original values');
+            
+            currentShiftFactors = JSON.parse(JSON.stringify(originalShiftFactors));
+            
+            // Reset sliders
+            Object.keys(currentShiftFactors).forEach(tempKey => {
+                const temp = parseFloat(tempKey);
+                if (Math.abs(temp - referenceTemp) < 0.01) return;
                 
-                fetch('/save_manual_adjustment', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        reference_temperature: referenceTemp,
-                        original_data: ttsData.original_data,
-                        shift_factors: currentShiftFactors
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        // Create download link
-                        const link = document.createElement('a');
-                        link.href = data.download_url;
-                        link.download = data.filename;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        
-                        showMessage('Excel file downloaded successfully', 'success');
-                    } else {
-                        throw new Error(data.error || 'Export failed');
-                    }
-                })
-                .catch(error => {
-                    showMessage('Export failed: ' + error.message, 'error');
-                });
+                const slider = document.getElementById(`slider-${temp}`);
+                const sf = currentShiftFactors[tempKey];
+                
+                if (slider && sf) {
+                    slider.value = sf.log_aT || 0;
+                    document.getElementById(`value-${temp}`).textContent = 
+                        (sf.log_aT || 0).toFixed(3);
+                }
+            });
+            
+            updatePlots();
+            updateTable();
+            showMessage('Reset to original values', 'success');
+        }
+
+        function handleSave() {
+            console.log('💾 Saving to browser storage');
+            
+            const saveData = {
+                reference_temperature: referenceTemp,
+                shift_factors: currentShiftFactors,
+                timestamp: new Date().toISOString()
+            };
+            
+            try {
+                localStorage.setItem('tts_manual_adjustment', JSON.stringify(saveData));
+                showMessage('Settings saved to browser', 'success');
+            } catch (e) {
+                showMessage('Failed to save to browser: ' + e.message, 'error');
+            }
+        }
+
+        function handleExport() {
+            console.log('📥 Exporting to Excel');
+            
+            showMessage('Preparing Excel file...', 'info');
+            
+            const exportData = {
+                reference_temperature: referenceTemp,
+                original_data: ttsData.original_data,
+                shift_factors: currentShiftFactors
+            };
+            
+            console.log('Export data:', exportData);
+            
+            fetch('/save_manual_adjustment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(exportData)
+            })
+            .then(response => {
+                console.log('Export response status:', response.status);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`Server error (${response.status}): ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Export response data:', data);
+                
+                if (data.status === 'success') {
+                    // Download the file
+                    console.log('Downloading from:', data.download_url);
+                    window.location.href = data.download_url;
+                    
+                    showMessage(`Excel file downloaded: ${data.filename}`, 'success');
+                } else {
+                    throw new Error(data.error || 'Export failed');
+                }
+            })
+            .catch(error => {
+                console.error('Export error:', error);
+                showMessage('Export failed: ' + error.message, 'error');
             });
         }
 
+        // ==================== UTILITY FUNCTIONS ====================
         function generateColors(count) {
             const colors = [];
             for (let i = 0; i < count; i++) {
@@ -703,21 +758,61 @@
             const alertClass = type === 'error' ? 'alert-danger' : 
                               type === 'info' ? 'alert-info' : 'alert-success';
             
-            messageDiv.innerHTML = `
+            const alertHTML = `
                 <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
                     ${message}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             `;
             
-            // Auto dismiss after 3 seconds
-            setTimeout(() => {
-                const alert = messageDiv.querySelector('.alert');
-                if (alert) {
-                    alert.classList.remove('show');
-                    setTimeout(() => messageDiv.innerHTML = '', 150);
-                }
-            }, 3000);
+            messageDiv.innerHTML = alertHTML;
+            
+            // Auto dismiss after 5 seconds (except errors)
+            if (type !== 'error') {
+                setTimeout(() => {
+                    const alert = messageDiv.querySelector('.alert');
+                    if (alert) {
+                        alert.classList.remove('show');
+                        setTimeout(() => {
+                            if (messageDiv.innerHTML === alertHTML) {
+                                messageDiv.innerHTML = '';
+                            }
+                        }, 150);
+                    }
+                }, 5000);
+            }
+        }
+
+        // ==================== DEBUG FUNCTIONS ====================
+        function toggleDebug() {
+            debugMode = !debugMode;
+            const panel = document.getElementById('debugPanel');
+            
+            if (debugMode) {
+                panel.classList.add('show');
+                updateDebugInfo();
+            } else {
+                panel.classList.remove('show');
+            }
+        }
+
+        function updateDebugInfo() {
+            const debugContent = document.getElementById('debugContent');
+            const tempCount = Object.keys(currentShiftFactors).length;
+            const dataPoints = ttsData && ttsData.original_data ? 
+                Object.values(ttsData.original_data).reduce((sum, d) => sum + d.omega.length, 0) : 0;
+            
+            debugContent.innerHTML = `
+                <div class="mt-2">
+                    <small>
+                        <strong>Temperatures:</strong> ${tempCount}<br>
+                        <strong>Reference:</strong> ${referenceTemp?.toFixed(1)}°C<br>
+                        <strong>Data points:</strong> ${dataPoints}<br>
+                        <strong>Session:</strong> ${ttsData ? 'Active' : 'None'}<br>
+                        <strong>Modified:</strong> ${JSON.stringify(originalShiftFactors) !== JSON.stringify(currentShiftFactors)}
+                    </small>
+                </div>
+            `;
         }
     </script>
 </body>
