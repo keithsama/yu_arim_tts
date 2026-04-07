@@ -2,286 +2,344 @@
 Time-Temperature Superposition Core Module
 元のTTSクラスをWebアプリ用に調整
 """
+"""
+シフトファクターは「温度ごとに1つ」を厳守
+"""
 
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')  # GUIを使わないバックエンド
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
 import pandas as pd
+from scipy.optimize import curve_fit
 from pathlib import Path
-import warnings
 from datetime import datetime
+import re
+import warnings
+
 warnings.filterwarnings('ignore')
 
-# matplotlibの設定
-plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
-plt.rcParams['axes.unicode_minus'] = False
 
 class TTS:
-    """時間温度換算則によるマスターカーブ作成クラス（Web版）"""
-    
+    """時間温度換算則によるマスターカーブ作成クラス"""
+
     def __init__(self, T_ref=None):
-        """
-        Parameters:
-        -----------
-        T_ref : float or None
-            基準温度 [°C]（Noneの場合は後で設定）
-        """
         self.T_ref = T_ref
-        self.data = {}
-        self.shift_factors = {}
-        self.shift_factors_manual = {}
+        self.data = {}                   # {温度: {'omega': array, 'modulus': array}}
+        self.shift_factors = {}          # {温度: aT}  ← 温度ごとに1つ
+        self.shift_factors_manual = {}   # {温度: aT}  ← 温度ごとに1つ
         self.shift_method = None
         self.WLF_C1 = None
         self.WLF_C2 = None
         self.Ea = None
         self.manual_adjustment_done = False
-        
+
+    # ==========================================================
+    # データ読み込み
+    # ==========================================================
     def load_excel(self, folder_path='.', pattern='*.xlsx'):
-        """
-        フォルダ内のExcelファイルを自動読み込み
-        """
+        """フォルダ内のExcel/CSVファイルを自動読み込み"""
         folder = Path(folder_path)
-        files = list(folder.glob(pattern))
-        
+
+        # xlsx, xls, csv を検索
+        files = []
+        for ext in ['*.xlsx', '*.xls', '*.csv']:
+            files.extend(folder.glob(ext))
+
         if not files:
-            raise FileNotFoundError(f"No Excel files found in {folder_path}")
-        
+            raise FileNotFoundError(
+                f"No data files found in {folder_path}")
+
+        print(f"\nFound {len(files)} data files")
+
         for file in sorted(files):
             temperature = self._extract_temperature(file.stem)
             if temperature is None:
+                print(f"  ⚠ Cannot extract temperature "
+                      f"from '{file.name}' - skipping")
                 continue
-            
+
             try:
-                df = pd.read_excel(file)
-                
+                if file.suffix.lower() == '.csv':
+                    df = pd.read_csv(file)
+                else:
+                    df = pd.read_excel(file)
+
                 if len(df.columns) >= 2:
-                    omega = df.iloc[:, 0].values
-                    modulus = df.iloc[:, 1].values
-                    
+                    omega = pd.to_numeric(
+                        df.iloc[:, 0], errors='coerce').values
+                    modulus = pd.to_numeric(
+                        df.iloc[:, 1], errors='coerce').values
+
                     mask = ~(np.isnan(omega) | np.isnan(modulus))
                     omega = omega[mask]
                     modulus = modulus[mask]
-                    
-                    self.data[temperature] = {
-                        'omega': omega,
-                        'modulus': modulus
-                    }
-                    
+
+                    if len(omega) > 0:
+                        self.data[temperature] = {
+                            'omega': omega,
+                            'modulus': modulus
+                        }
+                        print(f"  ✓ {file.name}: T={temperature}°C, "
+                              f"{len(omega)} points")
+                    else:
+                        print(f"  ⚠ {file.name}: No valid data points")
+                else:
+                    print(f"  ⚠ {file.name}: Insufficient columns")
+
             except Exception as e:
-                continue
-        
+                print(f"  ✗ Error reading {file.name}: {e}")
+
         if not self.data:
             raise ValueError("No valid data loaded")
-    
+
+        # シフトファクター初期化（温度ごとに1つ）
+        self._init_shift_factors()
+        print(f"\nLoaded: {sorted(self.data.keys())}°C")
+
+    def load_from_dict(self, data_dict):
+        """辞書からデータを読み込み（Web API用）"""
+        for temp_str, temp_data in data_dict.items():
+            T = float(temp_str)
+            omega = np.array(temp_data['omega'], dtype=float)
+            modulus = np.array(temp_data['modulus'], dtype=float)
+            if len(omega) > 0:
+                self.data[T] = {'omega': omega, 'modulus': modulus}
+
+        self._init_shift_factors()
+
     def _extract_temperature(self, filename):
         """ファイル名から温度を抽出"""
-        import re
         numbers = re.findall(r'-?\d+\.?\d*', filename)
         if numbers:
             return float(numbers[0])
         return None
-    
+
+    def _init_shift_factors(self):
+        """全温度のシフトファクターを1.0で初期化"""
+        for T in self.data:
+            self.shift_factors[T] = 1.0
+        print(f"  Initialized {len(self.shift_factors)} shift factors "
+              f"(one per temperature)")
+
+    # ==========================================================
+    # 現在有効なシフトファクター取得
+    # ==========================================================
+    def get_current_shift_factors(self):
+        """温度ごとに1つのシフトファクター辞書を返す"""
+        if self.manual_adjustment_done and self.shift_factors_manual:
+            return dict(self.shift_factors_manual)
+        return dict(self.shift_factors)
+
+    def get_shift_factors_summary(self):
+        """シフトファクターのサマリーを辞書で返す（API用）"""
+        factors = self.get_current_shift_factors()
+        summary = {}
+        for T in sorted(factors.keys()):
+            aT = factors[T]
+            summary[str(T)] = {
+                'aT': float(aT),
+                'log_aT': float(np.log10(aT))
+            }
+        return summary
+
+    # ==========================================================
+    # WLF シフト
+    # ==========================================================
     def shift_WLF(self, C1=8.86, C2=101.6, fit_constants=True):
-        """WLF式による自動シフト"""
         if self.T_ref is None:
             raise ValueError("Reference temperature not set")
-        
+
         self.shift_method = 'WLF'
-        
+
+        # 温度ごとに1つだけ計算
         for T in self.data:
             if T == self.T_ref:
                 self.shift_factors[T] = 1.0
             else:
-                log_aT = -C1 * (T - self.T_ref) / (C2 + T - self.T_ref)
-                self.shift_factors[T] = 10**log_aT
-        
-        if fit_constants and len([t for t in self.data if t != self.T_ref]) >= 2:
+                dT = T - self.T_ref
+                if abs(C2 + dT) < 1e-10:
+                    self.shift_factors[T] = 1.0
+                else:
+                    log_aT = -C1 * dT / (C2 + dT)
+                    self.shift_factors[T] = 10 ** log_aT
+
+        # フィッティング
+        if fit_constants and len(self.data) >= 3:
             try:
                 C1_fit, C2_fit = self._fit_WLF_constants()
                 self.WLF_C1 = C1_fit
                 self.WLF_C2 = C2_fit
-                
+
                 for T in self.data:
                     if T == self.T_ref:
                         self.shift_factors[T] = 1.0
                     else:
-                        log_aT = -C1_fit * (T - self.T_ref) / (C2_fit + T - self.T_ref)
-                        self.shift_factors[T] = 10**log_aT
-            except:
+                        dT = T - self.T_ref
+                        log_aT = -C1_fit * dT / (C2_fit + dT)
+                        self.shift_factors[T] = 10 ** log_aT
+            except Exception:
                 self.WLF_C1 = C1
                 self.WLF_C2 = C2
         else:
             self.WLF_C1 = C1
             self.WLF_C2 = C2
-    
+
+        self._print_shift_factors()
+
     def _fit_WLF_constants(self):
-        """WLF定数をデータからフィッティング"""
         temps = []
         log_aT_data = []
-        
         for T in self.data:
             if T != self.T_ref:
                 temps.append(T)
-                log_aT = np.log10(self.shift_factors[T])
-                log_aT_data.append(log_aT)
-        
-        temps = np.array(temps)
-        log_aT_data = np.array(log_aT_data)
-        
-        def WLF_equation(T, C1, C2):
-            return -C1 * (T - self.T_ref) / (C2 + T - self.T_ref)
-        
-        popt, _ = curve_fit(WLF_equation, temps, log_aT_data, 
-                           p0=[8.86, 101.6], maxfev=5000)
-        
+                log_aT_data.append(np.log10(self.shift_factors[T]))
+
+        def wlf_eq(T_arr, c1, c2):
+            return -c1 * (T_arr - self.T_ref) / (c2 + T_arr - self.T_ref)
+
+        popt, _ = curve_fit(wlf_eq, np.array(temps),
+                            np.array(log_aT_data),
+                            p0=[8.86, 101.6], maxfev=5000)
         return popt[0], popt[1]
-    
+
+    # ==========================================================
+    # Arrhenius シフト
+    # ==========================================================
     def shift_Arrhenius(self, Ea=80000, fit_Ea=False):
-        """Arrhenius式による自動シフト"""
         if self.T_ref is None:
             raise ValueError("Reference temperature not set")
-        
+
         self.shift_method = 'Arrhenius'
         R = 8.314
-        
+        T_ref_K = self.T_ref + 273.15
+
         for T in self.data:
             if T == self.T_ref:
                 self.shift_factors[T] = 1.0
             else:
                 T_K = T + 273.15
-                T_ref_K = self.T_ref + 273.15
-                log_aT = (Ea/R) * (1/T_K - 1/T_ref_K) / np.log(10)
-                self.shift_factors[T] = 10**log_aT
-        
-        if fit_Ea and len([t for t in self.data if t != self.T_ref]) >= 2:
+                log_aT = (Ea / R) * (1 / T_K - 1 / T_ref_K) / np.log(10)
+                self.shift_factors[T] = 10 ** log_aT
+
+        if fit_Ea and len(self.data) >= 3:
             try:
                 Ea_fit = self._fit_Arrhenius_Ea()
                 self.Ea = Ea_fit
-                
                 for T in self.data:
                     if T == self.T_ref:
                         self.shift_factors[T] = 1.0
                     else:
                         T_K = T + 273.15
-                        T_ref_K = self.T_ref + 273.15
-                        log_aT = (Ea_fit/R) * (1/T_K - 1/T_ref_K) / np.log(10)
-                        self.shift_factors[T] = 10**log_aT
-            except:
+                        log_aT = (Ea_fit / R) * (1 / T_K - 1 / T_ref_K) \
+                                 / np.log(10)
+                        self.shift_factors[T] = 10 ** log_aT
+            except Exception:
                 self.Ea = Ea
         else:
             self.Ea = Ea
-    
+
+        self._print_shift_factors()
+
     def _fit_Arrhenius_Ea(self):
-        """活性化エネルギーをフィッティング"""
-        temps = []
+        temps_K = []
         log_aT_data = []
-        
         for T in self.data:
             if T != self.T_ref:
-                temps.append(T + 273.15)
+                temps_K.append(T + 273.15)
                 log_aT_data.append(np.log10(self.shift_factors[T]))
-        
-        temps = np.array(temps)
+
         T_ref_K = self.T_ref + 273.15
-        
-        x = 1/temps - 1/T_ref_K
-        y = log_aT_data * np.log(10)
-        
+        x = np.array([1 / t - 1 / T_ref_K for t in temps_K])
+        y = np.array(log_aT_data) * np.log(10)
         slope, _ = np.polyfit(x, y, 1)
-        Ea_fitted = slope * 8.314
-        
-        return Ea_fitted
-    
-    def update_manual_shift(self, temperature, log_aT_value):
-        """手動シフト値の更新（Web用）"""
-        if temperature in self.data:
-            if not self.shift_factors_manual:
-                self.shift_factors_manual = self.shift_factors.copy()
-            self.shift_factors_manual[temperature] = 10**log_aT_value
-            self.manual_adjustment_done = True
-    
-    def get_master_curve_data(self):
-        """マスターカーブデータを取得（Web用）"""
-        factors = self.shift_factors_manual if self.manual_adjustment_done else self.shift_factors
-        
-        result = {
-            'original': {},
-            'shifted': {},
-            'shift_factors': {}
-        }
-        
-        for T in self.data:
-            result['original'][T] = {
-                'omega': self.data[T]['omega'].tolist(),
-                'modulus': self.data[T]['modulus'].tolist()
-            }
-            
-            if T in factors:
-                result['shifted'][T] = {
-                    'omega': (self.data[T]['omega'] * factors[T]).tolist(),
-                    'modulus': self.data[T]['modulus'].tolist()
-                }
-                result['shift_factors'][T] = {
-                    'aT': factors[T],
-                    'log_aT': np.log10(factors[T])
-                }
-        
-        return result
-    
-    def export_to_excel(self, filename='tts_results.xlsx'):
-        """結果をExcelファイルに出力"""
-        factors = self.shift_factors_manual if self.manual_adjustment_done else self.shift_factors
-        
-        with pd.ExcelWriter(filename) as writer:
-            # マスターカーブデータ
-            all_data = []
+        return slope * 8.314
+
+    # ==========================================================
+    # 表示
+    # ==========================================================
+    def _print_shift_factors(self):
+        factors = self.get_current_shift_factors()
+        n = len(factors)
+        label = "Manual" if self.manual_adjustment_done else "Auto"
+
+        print(f"\n{'=' * 50}")
+        print(f" Shift Factors ({label})  |  Tref = {self.T_ref}°C")
+        print(f" Total: {n} factors (= {n} temperatures)")
+        print(f"{'=' * 50}")
+        print(f" {'Temp [°C]':>10}  {'aT':>12}  {'log(aT)':>10}")
+        print(f" {'-' * 36}")
+        for T in sorted(factors.keys()):
+            aT = factors[T]
+            print(f" {T:10.1f}  {aT:12.3e}  {np.log10(aT):10.3f}")
+        print(f"{'=' * 50}")
+
+    # ==========================================================
+    # エクスポート
+    # ==========================================================
+    def export_results(self, filepath, use_manual=None):
+        """結果をExcelに出力"""
+        if use_manual is None:
+            factors = self.get_current_shift_factors()
+            adj_type = "Manual" if self.manual_adjustment_done else "Auto"
+        elif use_manual and self.shift_factors_manual:
+            factors = self.shift_factors_manual
+            adj_type = "Manual"
+        else:
+            factors = self.shift_factors
+            adj_type = "Auto"
+
+        with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+
+            # Sheet 1: Master Curve Data（aT列は含めない）
+            rows = []
             for T in sorted(self.data.keys()):
                 aT = factors.get(T, 1.0)
                 for i in range(len(self.data[T]['omega'])):
-                    all_data.append({
+                    rows.append({
                         'Temperature [°C]': T,
-                        'ω [rad/s]': self.data[T]['omega'][i],
+                        'omega [rad/s]': self.data[T]['omega'][i],
                         "G' [Pa]": self.data[T]['modulus'][i],
-                        'aT': aT,
-                        'log(aT)': np.log10(aT),
-                        'ω·aT [rad/s]': self.data[T]['omega'][i] * aT
+                        'omega*aT [rad/s]': self.data[T]['omega'][i] * aT,
                     })
-            
-            df = pd.DataFrame(all_data)
-            df.to_excel(writer, sheet_name='Master Curve Data', index=False)
-            
-            # シフトファクター
-            shift_data = []
+            pd.DataFrame(rows).to_excel(
+                writer, sheet_name='Master Curve Data', index=False)
+
+            # Sheet 2: Shift Factors（温度ごとに1行だけ！）
+            sf_rows = []
             for T in sorted(factors.keys()):
-                shift_data.append({
+                aT = factors[T]
+                sf_rows.append({
                     'Temperature [°C]': T,
-                    'aT': factors[T],
-                    'log(aT)': np.log10(factors[T])
+                    'aT': aT,
+                    'log(aT)': np.log10(aT),
                 })
-            
-            df_shift = pd.DataFrame(shift_data)
-            df_shift.to_excel(writer, sheet_name='Shift Factors', index=False)
-            
-            # パラメータ
-            params_data = {
-                'Parameter': ['Reference Temperature [°C]'],
-                'Value': [self.T_ref]
+            pd.DataFrame(sf_rows).to_excel(
+                writer, sheet_name='Shift Factors', index=False)
+
+            # Sheet 3: Parameters
+            params = {
+                'Parameter': [
+                    'Reference Temperature [°C]',
+                    'Adjustment Type',
+                    'Shift Method',
+                    'Number of Temperatures',
+                    'Number of Shift Factors',
+                    'Export Date',
+                ],
+                'Value': [
+                    self.T_ref, adj_type,
+                    self.shift_method or 'N/A',
+                    len(self.data), len(factors),
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                ]
             }
-            
-            if self.shift_method:
-                params_data['Parameter'].append('Shift Method')
-                params_data['Value'].append(self.shift_method)
-                
-                if self.shift_method == 'WLF' and self.WLF_C1:
-                    params_data['Parameter'].extend(['WLF C1', 'WLF C2'])
-                    params_data['Value'].extend([self.WLF_C1, self.WLF_C2])
-                elif self.shift_method == 'Arrhenius' and self.Ea:
-                    params_data['Parameter'].append('Ea [kJ/mol]')
-                    params_data['Value'].append(self.Ea/1000)
-            
-            df_params = pd.DataFrame(params_data)
-            df_params.to_excel(writer, sheet_name='Parameters', index=False)
-        
-        return filename
+            if self.shift_method == 'WLF' and self.WLF_C1:
+                params['Parameter'] += ['WLF C1', 'WLF C2']
+                params['Value'] += [self.WLF_C1, self.WLF_C2]
+            elif self.shift_method == 'Arrhenius' and self.Ea:
+                params['Parameter'].append('Ea [kJ/mol]')
+                params['Value'].append(self.Ea / 1000)
+
+            pd.DataFrame(params).to_excel(
+                writer, sheet_name='Parameters', index=False)
+
+        print(f"✓ Exported: {filepath} "
+              f"({len(factors)} shift factors)")
