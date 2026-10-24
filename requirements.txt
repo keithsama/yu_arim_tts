@@ -12,7 +12,7 @@ openpyxl==3.1.2
 matplotlib==3.7.2
 
 # File handling
-python-dotenv==1.0.0
+python-dotenv==1.2.2
 
 # Production server (optional)
 gunicorn==21.2.0
