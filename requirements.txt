@@ -1,6 +1,6 @@
 # Core dependencies
 Flask==3.0.0
-Werkzeug==3.0.1
+Werkzeug==3.1.9
 
 # Scientific computing
 numpy==1.24.3
