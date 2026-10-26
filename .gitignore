@@ -1,0 +1,13 @@
+# 仮想環境
+.venv/
+venv/
+env/
+
+# 機密情報ファイル
+.env
+
+# キャッシュや一時ファイル
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
